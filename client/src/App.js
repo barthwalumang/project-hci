@@ -1,26 +1,16 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
+import MakeCall from './Components/MakeCall';
+import { initializeIcons } from '@fluentui/react';
+
+initializeIcons();
 
 function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+    return (
+      <div className="ms-Fabric">
+        <MakeCall/>
+      </div>
+    ); 
 }
 
 export default App;
