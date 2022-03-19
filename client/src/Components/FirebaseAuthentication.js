@@ -1,17 +1,7 @@
 import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth';
 import React from "react";
 import firebase from 'firebase';
-
-const config = {
-    apiKey: "AIzaSyAKvkSFi4_G0SY2EE6W9bzIU5MsH6PDI20",
-    authDomain: "engage-be755.firebaseapp.com",
-    projectId: "engage-be755",
-    storageBucket: "engage-be755.appspot.com",
-    messagingSenderId: "417055963386",
-    appId: "1:417055963386:web:63a75a24c321aa60a8b143",
-    measurementId: "G-97ZL8NQF5H"
-  };
-firebase.initializeApp(config);
+import { Grid } from '@material-ui/core';
 
 const uiConfig = {
 
@@ -51,9 +41,18 @@ export default class SignInScreen extends React.Component {
       <div>
         { 
           !this.state.isSignedIn &&
-          <div className="Center">
-            <StyledFirebaseAuth uiConfig={uiConfig} firebaseAuth={firebase.auth()} />
-          </div>
+          <Grid
+            container
+            spacing={0}
+            direction="column"
+            alignItems="center"
+            justify="center"
+            style={{ minHeight: '100vh' }}
+          >
+            <Grid>
+              <StyledFirebaseAuth uiConfig={uiConfig} firebaseAuth={firebase.auth()} />
+            </Grid>
+          </Grid>
         }
         { 
           this.state.isSignedIn &&
