@@ -5,7 +5,9 @@ import StreamRenderer from "./StreamRenderer";
 import { LocalVideoStream } from '@azure/communication-calling';
 import { utils } from './Utilities/Utilities';
 import { Dropdown, Panel, PanelType } from "office-ui-fabric-react";
-import { CssBaseline, IconButton, Grid, Switch, Typography } from '@material-ui/core';
+import { CssBaseline, IconButton, Grid, Switch, Tooltip, Typography } from '@material-ui/core';
+import ShareFile from './ShareFile';
+import Chat from './Chat';
 import VideocamIcon from '@material-ui/icons/Videocam';
 import VideocamOffIcon from '@material-ui/icons/VideocamOff';
 import MicIcon from '@material-ui/icons/Mic';
@@ -14,8 +16,6 @@ import ScreenShareIcon from '@material-ui/icons/ScreenShare';
 import StopScreenShareIcon from '@material-ui/icons/StopScreenShare';
 import CallEndIcon from '@material-ui/icons/CallEnd';
 import SettingsIcon from '@material-ui/icons/Settings';
-import FolderSharedIcon from '@material-ui/icons/FolderShared';
-import ShareFile from "./ShareFile";
 
 export default class CallCard extends React.Component {
     constructor(props) {
@@ -23,6 +23,7 @@ export default class CallCard extends React.Component {
         this.callFinishConnectingResolve = undefined;
         this.call = props.call;
         this.deviceManager = props.deviceManager;
+        
         this.state = {
             callState: this.call.state,
             callId: this.call.id,
@@ -39,9 +40,10 @@ export default class CallCard extends React.Component {
             selectedSpeakerDeviceId: this.deviceManager.selectedSpeaker?.id,
             selectedMicrophoneDeviceId: this.deviceManager.selectedMicrophone?.id,
             showSettings: false,
-            showLocalVideo: false,
+            showLocalVideo: true,
             callMessage: undefined,
-            openDialog: false
+            openDialog: false,
+            showExpression: false,
         };
     }
 
@@ -118,7 +120,7 @@ export default class CallCard extends React.Component {
             });
 
             const callStateChanged = () => {
-                console.log('Call state changed ', this.call.state);
+                // console.log('Call state changed ', this.call.state);
                 this.setState({ callState: this.call.state });
 
                 if (this.call.state !== 'None' &&
@@ -137,12 +139,12 @@ export default class CallCard extends React.Component {
             this.call.on('stateChanged', callStateChanged);
 
             this.call.on('idChanged', () => {
-                console.log('Call id Changed ', this.call.id);
+                // console.log('Call id Changed ', this.call.id);
                 this.setState({ callId: this.call.id });
             });
 
             this.call.on('isMutedChanged', () => {
-                console.log('Local microphone muted changed ', this.call.isMuted);
+                // console.log('Local microphone muted changed ', this.call.isMuted);
                 this.setState({ micMuted: this.call.isMuted });
             });
 
@@ -152,13 +154,13 @@ export default class CallCard extends React.Component {
 
             this.call.remoteParticipants.forEach(rp => this.subscribeToRemoteParticipant(rp));
             this.call.on('remoteParticipantsUpdated', e => {
-                console.log(`Call=${this.call.callId}, remoteParticipantsUpdated, added=${e.added}, removed=${e.removed}`);
+                // console.log(`Call=${this.call.callId}, remoteParticipantsUpdated, added=${e.added}, removed=${e.removed}`);
                 e.added.forEach(p => {
-                    console.log('participantAdded', p);
+                    // console.log('participantAdded', p);
                     this.subscribeToRemoteParticipant(p);
                 });
                 e.removed.forEach(p => {
-                    console.log('participantRemoved', p);
+                    // console.log('participantRemoved', p);
                     if(p.callEndReason) {
                         this.setState(prevState => ({
                             callMessage: `${prevState.callMessage ? prevState.callMessage + `\n` : ``}
@@ -179,11 +181,11 @@ export default class CallCard extends React.Component {
         }
 
         participant.on('displayNameChanged', () => {
-            console.log('displayNameChanged ', participant.displayName);
+            // console.log('displayNameChanged ', participant.displayName);
         });
 
         participant.on('stateChanged', () => {
-            console.log('Participant state changed', participant.identifier.communicationUserId, participant.state);
+            // console.log('Participant state changed', participant.identifier.communicationUserId, participant.state);
         });
 
         const addToListOfAllRemoteParticipantStreams = (participantStreams) => {
@@ -304,12 +306,18 @@ export default class CallCard extends React.Component {
 
     cameraDeviceSelectionChanged = async (event, item) => {
         const cameras = await this.deviceManager.getCameras();
-        const cameraDeviceInfo = cameras.find(cameraDeviceInfo => { return cameraDeviceInfo.id === item.key });
-        const localVideoStream = this.call.localVideoStreams[0];
-        if (localVideoStream) {
-            localVideoStream.switchSource(cameraDeviceInfo);
+        if(cameras.length>1){
+            const cameraDeviceInfo = cameras.find(cameraDeviceInfo => { return cameraDeviceInfo.id === item.key });
+            const localVideoStream = this.call.localVideoStreams[0];
+            if (localVideoStream) {
+                try {
+                    localVideoStream.switchSource(cameraDeviceInfo);
+                } catch (error) {
+                    console.log(error);
+                }
+            }
+            this.setState({ selectedCameraDeviceId: cameraDeviceInfo.id });
         }
-        this.setState({ selectedCameraDeviceId: cameraDeviceInfo.id });
     };
 
     speakerDeviceSelectionChanged = async (event, item) => {
@@ -335,33 +343,54 @@ export default class CallCard extends React.Component {
                     spacing={0}
                     direction="column"
                     alignItems="center"
-                    justify="space-evenly"
-                    style={{ height: "100vh"}}
-                    >
+                    justify="flex-start"
+                    style={{ background: "url(/valley.svg) no-repeat center", backgroundSize: "cover" }}
+                >
+
+                    {/* --------------  --------------  -------------- */}
+                    {/*               Participants' Avatar             */}
+                    {/* --------------  --------------  -------------- */}
+                    {
+                        <Grid
+                            container
+                            item
+                            spacing={0}
+                            direction="row"
+                            alignItems="center"
+                            justify="center"
+                            style={{ height: "10vh" }}
+                        >
+                            {
+                                this.state.remoteParticipants.map(remoteParticipant =>
+                                    <RemoteParticipantCard key={`${utils.getIdentifierText(remoteParticipant.identifier)}`} remoteParticipant={remoteParticipant} call={this.call} />
+                                )
+                            }
+                        </Grid>
+                    }
+
+                    {/* --------------  --------------  -------------- */}
+                    {/*            Participants' Video Tiles           */}
+                    {/* --------------  --------------  -------------- */}
                     {
                         <Grid 
                             container
                             item
-                            spacing={3}
+                            spacing={0}
                             direction="row"
                             alignItems="center"
-                            justify="space-evenly"
-                            style={{ height: "80vh", overflow: "auto", padding: "5vh" }}
-                            zeroMinWidth
+                            justify="center"
+                            style={{ height: "70vh" }}
                         >
                             {
                                 this.state.callState === 'Connected' && this.state.remoteParticipants.length === 0 &&
-                                <Typography style={{color: "slategray", fontWeight: "normal"}}>
+                                <Typography 
+                                    variant="subtitle2"
+                                    color="textSecondary"
+                                    style={{ fontFamily: "monospace" }}   
+                                >
                                     No other participants currently on this call
                                 </Typography>
                             }
-                            {/* <div className="">
-                                {
-                                    this.state.remoteParticipants.map(remoteParticipant =>
-                                        <RemoteParticipantCard key={`${utils.getIdentifierText(remoteParticipant.identifier)}`} remoteParticipant={remoteParticipant} call={this.call} />
-                                    )
-                                }
-                            </div> */}
                             {
                                 this.state.callState === 'Connected' &&
                                 this.state.allRemoteParticipantStreams.map(v => <StreamRenderer 
@@ -369,11 +398,18 @@ export default class CallCard extends React.Component {
                                             ref ={v.streamRendererComponentRef}
                                             stream={v.stream}
                                             remoteParticipant={v.participant}
+                                            groupId={this.props.groupId}
+                                            userId={utils.getIdentifierText(v.participant.identifier)}
+                                            showExpression={this.state.showExpression}
                                         />
                                     )
                             }
                         </Grid>
                     }
+
+                    {/* --------------  --------------  -------------- */}
+                    {/*                   Meet Toolbar                 */}
+                    {/* --------------  --------------  -------------- */}
                     {
                         <Grid
                             item 
@@ -382,79 +418,99 @@ export default class CallCard extends React.Component {
                             direction="row"
                             alignItems="center"
                             justify="center"
-                            style= {{ height: "20vh"}}
-                        >
+                            style= {{ height: "20vh" }}
+                        >      
                             <span>
                                 {   
                                     this.state.videoOn &&
+                                    <Tooltip title='Camera-On' >
                                     <IconButton
                                         onClick = { () => this.handleVideoOnOff()}
                                     >
                                         <VideocamIcon color="primary" />
                                     </IconButton>
+                                    </Tooltip>  
                                 }
                                 {   
                                     !this.state.videoOn &&
+                                    <Tooltip title='Camera-Off' >
                                     <IconButton
                                         onClick = { () => this.handleVideoOnOff()} 
                                     >
                                         <VideocamOffIcon color="primary" />
                                     </IconButton>
+                                    </Tooltip>
                                 }
                             </span>
                             <span>
                                 {
                                     !this.state.micMuted &&
+                                    <Tooltip title='Mic-On' >
                                     <IconButton
                                         onClick = { () => this.handleMicOnOff()}
                                     >
                                         <MicIcon style={{color: "#4682b4"}} />
                                     </IconButton>
+                                    </Tooltip>
                                 }
                                 {
                                     this.state.micMuted &&
+                                    <Tooltip title='Mic-Off' >
                                     <IconButton
                                         onClick = { () => this.handleMicOnOff()}
                                     >
                                         <MicOffIcon style={{color: "#4682b4"}} />
                                     </IconButton>
+                                    </Tooltip>
                                 }
                             </span>
                             <span>
                                 {
                                     !this.state.screenShareOn &&
+                                    <Tooltip title='Screen-Share' >
                                     <IconButton
                                         onClick = { () => this.handleScreenSharingOnOff()} 
                                     >
                                         <ScreenShareIcon style={{color: "#2e8b57"}} />
                                     </IconButton>
+                                    </Tooltip>
                                 }
                                 {
                                     this.state.screenShareOn &&
+                                    <Tooltip title='Screen-Share Off' >
                                     <IconButton
                                         onClick = { () => this.handleScreenSharingOnOff() } 
                                     >
                                         <StopScreenShareIcon style={{color: "#2e8b57"}} />
                                     </IconButton>
+                                    </Tooltip>
                                 }
                             </span>
                             <span>
+                                <Tooltip title='Setting' >
                                 <IconButton
                                     onClick={() => this.setState({ showSettings: true })}
                                 >
                                     <SettingsIcon />
                                 </IconButton>
+                                </Tooltip>
                             </span>
                             <span>
                                 <ShareFile />
                             </span>
                             <span>
+                                <Chat groupId={this.props.groupId} displayName={this.props.displayName} isRoom={false}/>
+                            </span>
+                            
+                            <span>
                                 {
+                                    <Tooltip title='End-Call' >
                                     <IconButton
                                         onClick = { () => this.call.hangUp()} 
                                     >
                                         <CallEndIcon color="secondary"/>
                                     </IconButton>
+                                    </Tooltip>
                                 } 
                             </span>
                         </Grid>
@@ -465,7 +521,7 @@ export default class CallCard extends React.Component {
                         isOpen={this.state.showSettings}
                         onDismiss={() => this.setState({ showSettings: false })}
                         closeButtonAriaLabel="Close"
-                        headerText="Settings"
+                        headerText="SETTINGS"
                         style={{ paddingRight: "24px" }}    
                     >
                             <Typography 
@@ -481,7 +537,7 @@ export default class CallCard extends React.Component {
                                     <Typography 
                                         color="textSecondary" 
                                         variant="subtitle2" 
-                                        style={{ fontWeight: "bold" }}
+                                        style={{ fontWeight: "bold", marginTop: "1vh" }}
                                     >
                                         Camera
                                     </Typography>
@@ -498,30 +554,40 @@ export default class CallCard extends React.Component {
                                 <Typography 
                                     color="textSecondary" 
                                     variant="subtitle2" 
-                                    style={{ fontWeight: "bold" }}
+                                    style={{ fontWeight: "bold", marginTop: "1vh" }}
                                 >
                                         Camera Preview
                                     </Typography>
                             </span>
+                            {
+                                this.state.showLocalVideo &&
+                                <LocalVideoPreviewCard 
+                                    groupId={this.props.groupId}
+                                    userId={this.props.userId}
+                                    selectedCameraDeviceId={this.state.selectedCameraDeviceId} 
+                                    deviceManager={this.deviceManager}
+                                />
+                            }
+                            <span>
+                                <Typography 
+                                    color="textSecondary" 
+                                    variant="subtitle2" 
+                                    style={{ fontWeight: "bold", marginTop: "1vh" }}
+                                >
+                                        Expression Detection
+                                    </Typography>
+                            </span>
                             <Switch
-                                checked={this.state.showLocalVideo}
-                                onChange={() => this.setState({ showLocalVideo: !this.state.showLocalVideo })}
+                                checked={this.state.showExpression}
+                                onChange={() => this.setState({ showExpression: !this.state.showExpression })}
                                 color="primary"
                                 name="checkedB"
                                 inputProps={{ 'aria-label': 'primary checkbox' }}
                             />
-                            {
-                                this.state.showLocalVideo &&
-                                <LocalVideoPreviewCard 
-                                    selectedCameraDeviceId={this.state.selectedCameraDeviceId} 
-                                    deviceManager={this.deviceManager}
-                                    style={{ paddingTop: "3vh" }}
-                                />
-                            }
                             <Typography 
                                 color="textPrimary" 
                                 variant="subtitle1" 
-                                style={{ fontWeight: "bold", paddingTop: "3vh" }}
+                                style={{ fontWeight: "bold", marginTop: "1vh" }}
                             >
                                 Sound Settings
                             </Typography>
@@ -531,7 +597,7 @@ export default class CallCard extends React.Component {
                                     <Typography 
                                         color="textSecondary" 
                                         variant="subtitle2" 
-                                        style={{ fontWeight: "bold" }}
+                                        style={{ fontWeight: "bold", marginTop: "1vh" }}
                                     >
                                         Speaker
                                     </Typography>
@@ -550,7 +616,7 @@ export default class CallCard extends React.Component {
                                     <Typography 
                                         color="textSecondary" 
                                         variant="subtitle2" 
-                                        style={{ fontWeight: "bold" }}
+                                        style={{ fontWeight: "bold", marginTop: "1vh" }}
                                     >
                                         Microphone
                                     </Typography>

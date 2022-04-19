@@ -1,7 +1,11 @@
 import React from "react";
 import { utils } from './Utilities/Utilities';
 import { VideoStreamRenderer } from "@azure/communication-calling";
-import { Card, CardActionArea, CardMedia, Typography } from "@material-ui/core";
+import { Grid, Paper, Typography } from "@material-ui/core";
+import { firebaseDatabase } from "./FirebaseConfig";
+import MicIcon from '@material-ui/icons/Mic';
+import MicOffIcon from '@material-ui/icons/MicOff';
+import SettingsVoiceIcon from '@material-ui/icons/SettingsVoice';
 
 export default class StreamRenderer extends React.Component {
     constructor(props) {
@@ -12,9 +16,11 @@ export default class StreamRenderer extends React.Component {
         this.videoContainerId = this.componentId + '-videoContainer';
         this.renderer = undefined;
         this.view = undefined;
+        this.emojis = ["😐","🙂","😂","🤣","😫","😲","😡","😰","🤢"];
         this.state = {
             isSpeaking: false,
             displayName: this.remoteParticipant.displayName?.trim(),
+            userExpression: [],
         };
     }
 
@@ -30,9 +36,6 @@ export default class StreamRenderer extends React.Component {
                 this.setState({ isSpeaking: false });
             }
         });
-        this.remoteParticipant.on('displayNameChanged', () => {
-            this.setState({ displayName: this.remoteParticipant.displayName?.trim() });
-        })
 
         this.stream.on('isAvailableChanged', async () => {
             try {
@@ -55,6 +58,8 @@ export default class StreamRenderer extends React.Component {
         } catch (e) {
             console.error(e);
         }
+
+        this.recieveUserExpression(this.props.groupId, this.props.userId);
     }
 
     getRenderer() {
@@ -64,7 +69,7 @@ export default class StreamRenderer extends React.Component {
     async createRenderer() {
         if (!this.renderer) {
             this.renderer = new VideoStreamRenderer(this.stream);
-            this.view = await (await this.renderer.createView());
+            this.view = (await this.renderer.createView());
         } else {
             throw new Error(`[App][StreamMedia][id=${this.stream.id}][createRenderer] stream already has a renderer`);
         }
@@ -92,37 +97,113 @@ export default class StreamRenderer extends React.Component {
         }
     }
 
+    /**
+     * Fetching participants' expression from firebase
+     * @param {*} groupId 
+     * @param {*} userId 
+     */
+    recieveUserExpression(groupId, userId) {
+        firebaseDatabase.ref('expression').child(groupId).child(userId).on("value", (snapshot) => {
+                this.setState({userExpression: snapshot.val()});
+                // console.log(this.state.userExpression);
+        })
+    }
+
+    /**
+     * Mapping expression & confidence probability to emojis
+     * @param {*} expression 
+     * @param {*} probability 
+     * @returns 
+     */
+    getEmoji(expression,probability){
+        if(expression==='neutral') {
+                return this.emojis[0];
+        }
+        else if(expression==='happy') {
+            if(probability===1){
+                return this.emojis[3];
+            }
+            else if (probability>=0.9999){
+                return this.emojis[2];
+            }
+            else {
+                return this.emojis[1];
+            }
+        }
+        else if(expression==='sad') {
+            return this.emojis[2];
+        }
+        else if(expression==='surprised') {
+            return this.emojis[5];
+        }
+        else if(expression==='angry') {
+            return this.emojis[6];
+        }
+        else if(expression==='fearful') {
+            return this.emojis[7];
+        }
+        else if(expression==='disgusted') {
+            return this.emojis[8];
+        }
+    }
+
     render() {
         return (
-            <Card
-                id={this.componentId}
-                raised={true}
+            <Grid
+                item
                 style={{ margin: "2vh" }}
+                id={this.componentId}
+                xl={4}
+                lg={4}
+                md={4}
+                sm={4}
             >
                 {
                     !(this.stream.mediaStreamType === 'ScreenSharing') &&
-                    <CardActionArea>
-                        <CardMedia 
-                           id={this.videoContainerId}
-                        />
-                        <Typography style={{ textAlign: "center", fontWeight: "normal", fontSmooth: "always" }}>
-                            {this.state.displayName ? this.state.displayName : utils.getIdentifierText(this.remoteParticipant.identifier)}
+                    <Paper
+                        variant="elevation"
+                        elevation={0}
+                        style={{ overflow: "hidden", background: "transparent" }}
+                        component="div"
+                    >
+                        <div id={this.videoContainerId} ></div>
+                        <Typography 
+                            variant="subtitle1"
+                            color="textSecondary"
+                            style={{ fontWeight: "bold", textAlign: "center", fontFamily: "monospace" }}
+                        >
+                            {String(this.state.displayName).toUpperCase()} {this.remoteParticipant.isMuted ? <MicOffIcon fontSize="small" /> : (this.state.isSpeaking ? <SettingsVoiceIcon fontSize="small" />:<MicIcon fontSize="small" />)}                          
                         </Typography>
-                        </CardActionArea>
+                        <Typography
+                            variant="h4"
+                            style={{ textAlign: "center" }}    
+                        >
+                            {
+                                this.props.showExpression && !(this.state.userExpression===undefined) && !(this.state.userExpression===null) &&
+                                ` ${this.getEmoji(this.state.userExpression.expression,this.state.userExpression.probability)} `
+                            } 
+                        </Typography>
+                    </Paper>
                 }
                 {
                     (this.stream.mediaStreamType === 'ScreenSharing') &&
-                    <CardActionArea>
-                    <CardMedia 
-                        id={this.videoContainerId}
-                        style={{ maxHeight: "36vh", maxWidth: "64vh" }}
-                    />
-                    <Typography style={{ textAlign: "center", fontWeight: "normal", fontSmooth: "always" }}>
-                        {this.state.displayName ? this.state.displayName : utils.getIdentifierText(this.remoteParticipant.identifier)}
-                    </Typography>
-                    </CardActionArea>   
+                    <Paper
+                        variant="elevation"
+                        elevation={5}
+                        style={{ overflow: "hidden" }}
+                        component="div"
+                    >
+                        <div id={this.videoContainerId} ></div>
+                        <Typography 
+                            variant="subtitle1"
+                            color="textSecondary"
+                            style={{ fontWeight: "bold", textAlign: "center", fontFamily: "monospace" }}
+                        >
+                            {`${String(this.state.displayName).toUpperCase()}'s Screen`}
+                        </Typography>
+                    </Paper>
                 }
-            </Card>
+            </Grid>
         );
     }
 }

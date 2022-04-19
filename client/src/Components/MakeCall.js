@@ -1,16 +1,18 @@
 import React from "react";
 import { CallClient, LocalVideoStream } from '@azure/communication-calling';
 import { AzureCommunicationTokenCredential } from '@azure/communication-common';
-import {
-    IconButton,
-    MessageBar,
-    MessageBarType,
-    PrimaryButton,
-    TextField
-} from 'office-ui-fabric-react'
+import { AppBar, Button, Dialog, DialogContent, Grid, IconButton, Paper, TextField, Toolbar, Tooltip, Typography } from "@material-ui/core";
+// import { MessageBar, MessageBarType } from 'office-ui-fabric-react';
 import Login from './Login';
 import CallCard from "./CallCard";
-import { setLogLevel } from '@azure/logger';
+// import { setLogLevel } from '@azure/logger';
+import Chat from './Chat';
+import FileCopyIcon from '@material-ui/icons/FileCopy';
+import ShareIcon from '@material-ui/icons/Share';
+import ExitToAppIcon from '@material-ui/icons/ExitToApp';
+import DuoIcon from '@material-ui/icons/Duo';
+import MeetingRoomIcon from '@material-ui/icons/MeetingRoom';
+import ChatIcon from '@material-ui/icons/Chat';
 
 export default class MakeCall extends React.Component {
     constructor(props) {
@@ -18,7 +20,7 @@ export default class MakeCall extends React.Component {
         this.callClient = null;
         this.callAgent = null;
         this.deviceManager = null;
-        this.destinationGroup = null;
+        this.destinationGroup = undefined;
         this.callError = null;
 
         this.state = {
@@ -32,15 +34,24 @@ export default class MakeCall extends React.Component {
             callError: null,
             createGroupCall: false,
             joinGroupCall: false,
-            UUID: undefined
+            UUID: undefined,
+            openDialog: false,
+            displayName: undefined,
+            userId: undefined,
+            roomStatus: false,
         };
     }
 
+    /**
+     * Processing ACS Token & initialising device permissions
+     * @param {*} userDetails 
+     */
     handleLogIn = async (userDetails) => {
         if (userDetails) {
             try {
                 const tokenCredential = new AzureCommunicationTokenCredential(userDetails.token);
-                setLogLevel('verbose');
+                this.setState({userId: userDetails.id});
+                // setLogLevel('verbose');
                 this.callClient = new CallClient();
                 this.callAgent = await this.callClient.createCallAgent(tokenCredential, { displayName: userDetails.displayName });
                 window.callAgent = this.callAgent;
@@ -48,7 +59,6 @@ export default class MakeCall extends React.Component {
                 await this.deviceManager.askDevicePermission({ audio: true });
                 await this.deviceManager.askDevicePermission({ video: true });
                 this.callAgent.on('callsUpdated', e => {
-                    console.log(`callsUpdated, added=${e.added}, removed=${e.removed}`);
 
                     e.added.forEach(call => {
                         this.setState({ call: call })
@@ -79,13 +89,18 @@ export default class MakeCall extends React.Component {
     joinGroup = async (withVideo) => {
         try {
             const callOptions = await this.getCallOptions(withVideo);
-            this.callAgent.join({ groupId: this.destinationGroup.value }, callOptions);
+            this.callAgent.join({ groupId: this.destinationGroup }, callOptions);
         } catch (e) {
             console.error('Failed to join a call', e);
             this.setState({ callError: 'Failed to join a call: ' + e });
         }
     };
 
+    /**
+     * Initialising the primary camera, microphone & speaker
+     * @param {*} withVideo 
+     * @returns 
+     */
     async getCallOptions(withVideo) {
         let callOptions = {
             videoOptions: {
@@ -167,11 +182,13 @@ export default class MakeCall extends React.Component {
         return callOptions;
     }
 
+    /**
+     * Fetching UUID
+     */
     async generateUuid() {
         const uuid = await fetch('/generate-uuid')
                         .then(async function(response){
                             return response.json().then(function(parsedResponse) {
-                                console.log(parsedResponse);
                                 return parsedResponse;
                             });
                         });
@@ -179,52 +196,146 @@ export default class MakeCall extends React.Component {
         this.setState({UUID: uuid});
     }
 
+    copy = () =>{
+        let uuid = this.state.UUID;
+        navigator.clipboard.writeText(uuid);
+    }
+
+    handleDialog = () => {
+        this.setState({openDialog: !this.state.openDialog});
+    };
+
+    callbackDisplayName = (displayName) => {
+        this.setState({displayName: displayName});
+    }
+
     render() {
         return (
-            <div>
-                <Login onLoggedIn={this.handleLogIn} />
-                {   
-                    this.state.loggedIn && !this.state.createGroupCall && !this.state.joinGroupCall &&
-                    <div className="container">
-                        <div className="Center">
-                            <div className="row">
-                                <div className="col-sm-6 p-3">
-                            <IconButton aria-label="Create" 
-                                iconProps={{iconName: 'Add'}}
-                                data-bs-toggle="modal"
-                                data-bs-target="#generated-uuid"
-                                onClick={ () => this.generateUuid() }
-                            >
-                            </IconButton>
-                            
-                                    {/* <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#staticBackdrop">
-                                        Launch
-                                    </button>    */}
-                                </div>
-                        
-                                <div className="col-sm-6 p-3">
-                                    <IconButton aria-label="Join" 
-                                        iconProps={{iconName: 'AddLink'}}
-                                        onClick={ () => {this.setState({joinGroupCall: true})}}>
-                                    </IconButton>
-                                </div>
-                            </div>
-                        </div> 
-                        <div className="modal fade" id="generated-uuid" data-bs-backdrop="static" data-bs-keyboard="false" aria-labelledby="staticBackdropLabel" aria-hidden="true">
-                            <div className="modal-dialog modal-dialog-centered">
-                                <div className="modal-content">
-                                    <div className="modal-header">
-                                        <b className="modal-title" id="staticBackdropLabel">Joining ID : <span className="text-primary">{this.state.UUID}</span></b>
-                                        <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>  
-                    </div>
+            <React.Fragment>
+
+                {
+                    <Login onLoggedIn={this.handleLogIn} callbackDisplayName={this.callbackDisplayName} />
                 }
-                <div className="">
-                    <div className="">
-                        {
+
+                {/* --------------  --------------  -------------- */}
+                {/*                 Create & Join Page             */}
+                {/* --------------  --------------  -------------- */}
+                { 
+                    this.state.loggedIn && !this.state.createGroupCall && !this.state.joinGroupCall &&
+                    <Grid
+                        container
+                        spacing={0}
+                        direction="row"
+                        alignItems="center"
+                        justify="center"
+                        style={{ minHeight: '100vh', background: "url(/wave.svg) no-repeat", backgroundSize: "cover" }}
+                    >
+                        <Grid item style={{ margin: "7vh" }}>
+                            <Button
+                                color="primary"
+                                variant="contained"
+                                onClick={ () => {this.generateUuid();
+                                                 this.handleDialog();} }
+                            >
+                                Create Meet
+                            </Button>
+                        </Grid>
+                        <Grid item style={{ margin: "7vh" }}>
+                            <Button
+                                color="primary"
+                                variant="contained"
+                                onClick={ () => {this.setState({joinGroupCall: true})} }
+                            >
+                                Join Room
+                            </Button>
+                        </Grid>
+                    </Grid>    
+                }
+                {
+                    <Dialog
+                    open={this.state.openDialog}
+                    onClose={this.handleDialog}
+                    maxWidth="xs"
+                    fullWidth={true}
+                >
+                    <Grid
+                        container
+                        direction="row"
+                        justify="center"
+                        alignItems="center"
+                        style={{ background: "linear-gradient(to bottom , #002984 0%, #757de8 100%)", padding: "1vh" }}
+                    >
+                        <Typography 
+                            variant="subtitle1"
+                            style={{ color:"#ffffff", textAlign: "center", fontWeight: "bold", fontFamily: "monospace" }}
+                        >
+                            MEETING CODE
+                        </Typography>
+                    </Grid>
+                    <DialogContent
+                        style={{ minHeight: "20vh", marginTop: "2vh" }}
+                    >
+                        <Grid 
+                            container
+                            spacing={0}
+                            direction="column"
+                            alignItems="center"
+                            justify="space-around"
+                        >
+                            <Grid 
+                                container
+                                item
+                                justify="center"
+                            >
+                                <Button>
+                                    <Typography
+                                        color="primary"
+                                        variant="subtitle2"
+                                    >
+                                        {this.state.UUID}
+                                    </Typography>
+                                </Button>   
+                            </Grid>
+                            <Grid
+                               container
+                               item 
+                               justify="space-evenly"
+                               style={{ marginTop: "1vh" }}
+                            >
+                                <Grid 
+                                    item 
+                                >
+                                    <Tooltip title="Share via Email" >
+                                        <IconButton
+                                            href={`mailto:test@example.com?subject=Agile Teams Joining Code&body=You are invited to join Agile Teams Meet. Your Joining Code: ${this.state.UUID}`}
+                                        >
+                                            <ShareIcon />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Grid>
+                                <Grid 
+                                    item 
+                                >
+                                    <Tooltip title="Copy" >
+                                        <IconButton
+                                            onClick={ this.copy }    
+                                        >
+                                            <FileCopyIcon />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </DialogContent>
+                 </Dialog>
+                }
+                <div>
+                    <div>
+
+                        {/* --------------  --------------  -------------- */}
+                        {/*                 Enter Meet Code                */}
+                        {/* --------------  --------------  -------------- */}
+                        {/* {
                             this.state.callError &&
                             <MessageBar
                                 messageBarType={MessageBarType.error}
@@ -243,38 +354,186 @@ export default class MakeCall extends React.Component {
                                 dismissButtonAriaLabel="Close">
                                 <b>{this.state.deviceManagerWarning}</b>
                             </MessageBar>
-                        }
-                        {/* {
-                            !this.state.call && this.state.createGroupCall &&
-                            <div className="Center">
-                                <div className="row">
-
-                                </div>
-                            </div>
                         } */}
                         {
-                            !this.state.call && this.state.joinGroupCall &&
-                            <div className="Center">
-                                <div className="ms-Grid-col ms-sm12 ms-lg12 ms-xl12 ms-xxl4">
-                                    <TextField
-                                        className="mb-3"
-                                        disabled={this.state.call}
-                                        label="Enter Code"
-                                        placeholder=""
-                                        componentRef={(val) => this.destinationGroup = val} />
-                                    <PrimaryButton
-                                        className="primary-button"
-                                        iconProps={{ iconName: 'Video', style: { verticalAlign: 'middle', fontSize: 'large' } }}
-                                        text="Join"
-                                        disabled={this.state.call}
-                                        onClick={() => this.joinGroup(true)}>
-                                    </PrimaryButton>
-                                </div>
-                            </div>
+                            !this.state.call && this.state.joinGroupCall && !this.state.roomStatus &&
+                            <Grid
+                                container
+                                spacing={0}
+                                direction="column"
+                                alignItems="center"
+                                justify="center"
+                                style={{ minHeight: '100vh', background: "url(/wave.svg) no-repeat", backgroundSize: "cover"  }}   
+                            >
+                                <Paper
+                                    elevation={5}
+                                    style={{ minHeight: "40vh", minWidth: "50vh" }}
+                                >
+                                    <Grid
+                                        container
+                                        justify="center"
+                                        alignItems="center"
+                                        style={{ minHeight: "40vh", minWidth: "50vh", background: "linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8)), url(/teams.png) no-repeat center", backgroundSize: "contain"}}
+                                    >
+                                        <Grid 
+                                            item
+                                            container
+                                            spacing={2}
+                                        >
+                                            <Grid
+                                                container
+                                                item
+                                                justify="center"
+                                            >
+                                                <Typography
+                                                    color="primary"
+                                                    style={{  fontWeight: "bold" }}
+                                                    variant="caption"
+                                                >
+                                                    ENTER JOINING CODE
+                                                </Typography>
+                                            </Grid>
+                                            <Grid 
+                                                container
+                                                item
+                                                justify="center"
+                                            >
+                                                <TextField 
+                                                    variant="outlined"
+                                                    size="small"
+                                                    onChange={ (e) => { this.destinationGroup = e.target.value }}
+                                                />
+                                            </Grid>
+                                            <Grid
+                                                container
+                                                item
+                                                justify="center"
+                                            >
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={<MeetingRoomIcon />}
+                                                    color="primary"
+                                                    size="small"
+                                                    onClick={() => {this.setState({roomStatus: true});}}
+                                                >   
+                                                    Enter Room
+                                                </Button>
+                                            </Grid>
+                                        </Grid>
+                                    </Grid>
+                                </Paper>
+                            </Grid>
                         }
+
+                        {/* --------------  --------------  -------------- */}
+                        {/*                   Meeting Room                 */}
+                        {/* --------------  --------------  -------------- */}
+                        {
+                            !this.state.call && this.state.joinGroupCall && this.state.roomStatus &&
+                            <Grid
+                                container
+                                direction="row"
+                                justify="center"
+                                alignItems="flex-start"
+                                style={{ minHeight: '100vh', background: "url(/wave.svg) no-repeat", backgroundSize: "cover" }}   
+                            >
+                                <AppBar position="relative">
+                                    <Toolbar variant="dense">
+                                        <Grid
+                                            container
+                                            justify="space-between"
+                                            alignItems="center"
+                                        >
+                                            <Grid item>
+                                                <Typography
+                                                    color="inherit"
+                                                    variant="subtitle1"
+                                                    style={{ fontFamily: "monospace", fontWeight: "bold", marginLeft: "2vh" }}
+                                                >
+                                                    AGILE TEAMS
+                                                </Typography>
+                                            </Grid>
+                                            <Grid item>
+                                                <Tooltip title="Leave Room">
+                                                    <IconButton
+                                                        color="inherit"
+                                                        onClick={() => {this.setState({roomStatus: false});}}
+                                                    >
+                                                        <ExitToAppIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Grid>
+                                        </Grid>
+                                    </Toolbar>
+                                </AppBar>
+                                <Grid
+                                    container
+                                    item
+                                    justify="center"
+                                    alignItems="center"
+                                    style={{ height: "90vh", marginLeft: "2vh", marginRight: "2vh"  }}
+                                >
+                                    <Paper
+                                        elevation={5}
+                                        component="span"
+                                        style={{ height: "80vh", width: "100vh", padding: "2vh" }}
+                                    >
+                                        <Grid
+                                            container
+                                            style={{ background: "linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)), url(/chat.png) no-repeat center", backgroundSize: "contain" }}
+                                        >
+                                            <Grid
+                                                container
+                                                item
+                                                justify="space-between"
+                                                alignItems="center"
+                                            >
+                                                <Grid item>
+                                                    <Typography
+                                                        color="primary"
+                                                        variant="subtitle2"
+                                                        style={{ fontFamily: "monospace", fontWeight: "bold" ,marginLeft: "2vh", marginRight: "2vh" }}
+                                                    >
+                                                        <ChatIcon style={{ marginRight: "1vh" }} />
+                                                        GROUP-CHATS
+                                                    </Typography>
+                                                </Grid>
+                                                <Grid item>
+                                                    <Tooltip title="Join Meet" >
+                                                        <IconButton 
+                                                            color="primary" 
+                                                            onClick={() => {this.joinGroup(true);}}
+                                                        >
+                                                            <DuoIcon style={{ fontSize: "4vh" }} />
+                                                        </IconButton>
+                                                    </Tooltip> 
+                                                </Grid>
+                                            </Grid>
+                                            <Grid
+                                                container
+                                                item
+                                            >
+                                               <Chat 
+                                                    groupId={this.destinationGroup} 
+                                                    displayName={this.state.displayName} 
+                                                    isRoom={true}
+                                                />   
+                                            </Grid>
+                                        </Grid>
+                                    </Paper>
+                                </Grid> 
+                            </Grid>
+                        }
+
+                        {/* --------------  --------------  -------------- */}
+                        {/*                    Call Card                   */}
+                        {/* --------------  --------------  -------------- */}
                         {
                             this.state.call &&
                             <CallCard
+                                groupId={this.destinationGroup}
+                                userId={this.state.userId}
+                                displayName={this.state.displayName}
                                 call={this.state.call}
                                 deviceManager={this.deviceManager}
                                 selectedCameraDeviceId={this.state.selectedCameraDeviceId}
@@ -287,7 +546,7 @@ export default class MakeCall extends React.Component {
                         }
                     </div>
                 </div>
-            </div>
+            </React.Fragment>
         );
     }
 }

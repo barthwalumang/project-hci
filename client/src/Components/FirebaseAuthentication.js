@@ -1,6 +1,6 @@
-import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth';
 import React from "react";
-import firebase from 'firebase';
+import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth';
+import { firebaseAuth, GoogleAuthProvider, EmailAuthProvider } from './FirebaseConfig';
 import { Grid } from '@material-ui/core';
 
 const uiConfig = {
@@ -8,8 +8,8 @@ const uiConfig = {
   signInFlow: 'popup',
 
   signInOptions: [
-    firebase.auth.GoogleAuthProvider.PROVIDER_ID,
-    firebase.auth.EmailAuthProvider.PROVIDER_ID
+    GoogleAuthProvider,
+    EmailAuthProvider
   ],
   callbacks: {
     signInSuccessWithAuthResult: () => false,
@@ -26,7 +26,7 @@ export default class SignInScreen extends React.Component {
   }
 
   componentDidMount() {
-    this.unregisterAuthObserver = firebase.auth().onAuthStateChanged(user => {
+    this.unregisterAuthObserver = firebaseAuth.onAuthStateChanged(user => {
       this.setState({isSignedIn: !!user});
       this.props.onAuthentication(this.state.isSignedIn);
     });
@@ -50,16 +50,9 @@ export default class SignInScreen extends React.Component {
             style={{ minHeight: '100vh' }}
           >
             <Grid>
-              <StyledFirebaseAuth uiConfig={uiConfig} firebaseAuth={firebase.auth()} />
+              <StyledFirebaseAuth uiConfig={uiConfig} firebaseAuth={firebaseAuth} />
             </Grid>
           </Grid>
-        }
-        { 
-          this.state.isSignedIn &&
-          <div>
-            {/* <p>Welcome {firebase.auth().currentUser.displayName}! You are now signed-in!</p> */}
-            {/* <a onClick={() => firebase.auth().signOut()}>Sign-out</a> */}
-          </div>
         }
       </div>
     );

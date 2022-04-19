@@ -1,6 +1,6 @@
 import React from 'react';
-import firebase from 'firebase';
-import { Button, CssBaseline, Dialog, DialogContent, DialogTitle, Divider, Grid, IconButton, TextField, Typography } from '@material-ui/core';
+import { firebaseStorage, firebaseStorageTaskEventSTATE_CHANGED, firebaseStorageTaskStatePAUSED, firebaseStorageTaskStateRUNNING } from './FirebaseConfig';
+import { Button, CssBaseline, Dialog, DialogContent, Grid, IconButton, TextField, Tooltip, Typography } from '@material-ui/core';
 import FolderSharedIcon from '@material-ui/icons/FolderShared';
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import CloudDownloadIcon from '@material-ui/icons/CloudDownload';
@@ -11,6 +11,7 @@ import ClearIcon from '@material-ui/icons/Clear';
 export default class ShareFile extends React.Component {
     constructor(props) {
         super(props);
+        
         this.state = {
             openDialog: false,
             PROGRESS_UPLOAD:0,
@@ -23,6 +24,10 @@ export default class ShareFile extends React.Component {
         }
     }
 
+    /**
+     * Generate unique password for the uploaded files
+     * @returns 
+     */
     random = () =>{
         var result = '';
         let chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -30,7 +35,7 @@ export default class ShareFile extends React.Component {
         for (var i = 10; i > 0; --i)
             result += chars[Math.floor(Math.random() * chars.length)];
         result += String(Math.floor(Math.random() * 100) + 1);
-        console.log(result);
+        // console.log(result);
         return result;
     }
 
@@ -46,26 +51,26 @@ export default class ShareFile extends React.Component {
         }
         else{
             try{
-                console.log("uploading file ");
-                const storageRef  = firebase.storage().ref();
+                // console.log("uploading file ");
+                const storageRef  = firebaseStorage.ref();
                 let folderName = this.random();
                 for(let i of this.state.FILES_UPLOAD){
                     this.setState ({PROGRESS_UPLOAD : parseFloat(0)});
                     const fileToUpload = storageRef.child(folderName+'/'+i.name);
                     let uploadTask = fileToUpload.put(i);
                     uploadTask.then(snapshot => {
-                        console.log('File Uploaded Successfully');
+                        // console.log('File Uploaded Successfully');
                         switch (snapshot.state) {
-                            case firebase.storage.TaskState.PAUSED:
+                            case firebaseStorageTaskStatePAUSED:
                                 alert("Sorry, we are facing some problem!!");
                               break;
-                            case firebase.storage.TaskState.RUNNING:
+                            case firebaseStorageTaskStateRUNNING:
                                 alert("Sorry, we are facing some problem!!");
                               break;
                             default: break;
                           }
                     });
-                    uploadTask.on(firebase.storage.TaskEvent.STATE_CHANGED, // or 'state_changed'
+                    uploadTask.on(firebaseStorageTaskEventSTATE_CHANGED, // or 'state_changed'
                         snapshot => {
                             var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                             this.setState ({PROGRESS_UPLOAD : parseFloat(progress)});
@@ -107,12 +112,14 @@ export default class ShareFile extends React.Component {
                     this.state.FILES_UPLOAD.push(file);
                     this.setState({SIZE : parseFloat(oldVal)-parseFloat(size)});
                     let list = document.createElement("LI");
-                    let node = document.createTextNode(String(file.name).substr(0,11)+"..."+"("+String((size/(1e+6)).toFixed(2))+" MB)");
+                    const FILENAME = String(file.name).substr(0,11);
+                    const FILESIZE = String((size/(1e+6)).toFixed(2));
+                    let node = document.createTextNode(`${FILENAME}... (${FILESIZE}MB)`);
                     list.appendChild(node);
                     document.getElementById("filedisplaylist").appendChild(list);
                 }
                 else{
-                    alert("5MB Limit Exceed");
+                    alert("Either 5MB limit exceeded or more than 5 files selected!");
                 }
             }
         }
@@ -136,7 +143,6 @@ export default class ShareFile extends React.Component {
     copy = () =>{
         let url = this.state.URL;
         navigator.clipboard.writeText(url);
-        console.table("copied");
     }
     
     download = () => {
@@ -147,14 +153,14 @@ export default class ShareFile extends React.Component {
         if(len > 0){
             let i;  
             for(i=0;i<len;i++){
-                const storageRef  = firebase.storage().ref();
+                const storageRef  = firebaseStorage.ref();
                 var starsRef = storageRef.child(files[i]);
                 starsRef.getDownloadURL()
                 .then((url) => {
                     let oldval  = this.state.PROGRESS
                     this.setState ({PROGRESS : parseFloat(oldval)+parseFloat(step)})
                     document.getElementById('inputCode').value = '';
-                    console.log(url)
+                    // console.log(url)
                     let element = document.createElement('a'); 
                     element.setAttribute('href', url); 
                     element.setAttribute('target', "_blank"); 
@@ -168,10 +174,11 @@ export default class ShareFile extends React.Component {
             }      
         }
     }
+
     checkFiles = () => {
         let text = document.getElementById('inputCode').value
         if (text.length>0){
-            const storageRef  = firebase.storage().ref();
+            const storageRef  = firebaseStorage.ref();
             var listRef = storageRef.child(text+"/");
             listRef.listAll().then((res) => {
                 res.items.forEach((itemRef) => {
@@ -207,38 +214,45 @@ export default class ShareFile extends React.Component {
         return (
             <React.Fragment>
                 <CssBaseline />
-                <IconButton
-                    onClick={this.handleDialog}
-                >
-                    <FolderSharedIcon style={{color: "#f4a460"}} />
-                </IconButton>
+                <Tooltip title='Share-Files' >
+                    <IconButton
+                        onClick={this.handleDialog}
+                    >
+                        <FolderSharedIcon style={{color: "#f4a460"}} />
+                    </IconButton>
+                </Tooltip>
                 <Dialog
                     open={this.state.openDialog}
                     onClose={this.handleDialog}
-                    aria-labelledby="responsive-dialog-title"
-                    fullWidth
+                    aria-labelledby="Share File Box"
+                    maxWidth="md"
                 >
-                    <DialogTitle >
+                    <Grid
+                        container
+                        direction="row"
+                        justify="center"
+                        alignItems="center"
+                        style={{ background: "linear-gradient(to bottom , #002984 0%, #757de8 100%)", padding: "1vh" }}
+                    >
                         <Typography 
-                            color="textSecondary"
-                            style={{ textAlign: "center", fontWeight: "bold"}}
+                            variant="subtitle1"
+                            style={{ color:"#ffffff", textAlign: "center", fontWeight: "bold", fontFamily: "monospace" }}
                         >
-                            Share File
+                            SHARE FILES
                         </Typography>
-                    </DialogTitle>
-                    <Divider variant="middle" />
+                    </Grid>
                     <DialogContent
-                        style={{ minHeight: "30vh", maxHeight: "10vh" }}
+                        style={{ minHeight: "30vh", marginTop:"2vh" }}
                     >
                         {
                             <Grid 
                                 container
-                                justify="space-evenly"
+                                justify="space-between"
                             >
                                 <Grid 
                                     item
                                     style={{ width: "35vh" }}
-                                    justify="center"
+                                    // justify="center"
                                 >
                                     <Grid 
                                         container
@@ -246,6 +260,7 @@ export default class ShareFile extends React.Component {
                                         justify="center"
                                     >
                                         <Button
+                                            color="primary"
                                             startIcon={<CloudUploadIcon />}
                                             id="upload"
                                             onClick={this.upload}
@@ -257,6 +272,7 @@ export default class ShareFile extends React.Component {
                                         container 
                                         item
                                         justify="center"
+                                        style={{ marginTop: "2vh" }}
                                     >
                                         <IconButton
                                             onClick={this.filepick}
@@ -274,12 +290,11 @@ export default class ShareFile extends React.Component {
                                             <Typography
                                                 color= "textSecondary"
                                                 variant="body2"
-                                                style={{ overflow:"scroll" }}
+                                                // style={{ overflow:"scroll" }}
                                             >
                                                 <span 
                                                     id="filedisplaylist" 
                                                     onClick={this.removeFile}
-                                                    style={{ width: "" }}
                                                 >
                                                 </span>   
                                             </Typography>  
@@ -322,7 +337,6 @@ export default class ShareFile extends React.Component {
                                 <Grid 
                                     item
                                     style={{ width: "35vh" }}
-                                    justify="center"
                                 >
                                     <Grid 
                                         container
@@ -330,6 +344,7 @@ export default class ShareFile extends React.Component {
                                         justify="center"
                                     >
                                         <Button
+                                            color="primary"
                                             startIcon={<CloudDownloadIcon />}
                                             id="dowload"
                                             onClick={this.checkFiles}
@@ -341,9 +356,11 @@ export default class ShareFile extends React.Component {
                                         container
                                         item
                                         justify="center"
+                                        style={{ marginTop: "2vh" }}
                                     >
                                         <TextField 
-                                            label="Enter Unique Code"
+                                            variant="outlined"
+                                            placeholder="- Enter Unique Code -"
                                             margin="dense"
                                             size="small" 
                                             id="inputCode"

@@ -1,7 +1,7 @@
 import React from "react";
 import { utils } from "./Utilities/Utilities";
 import HomePage from "./HomePage";
-import { CssBaseline, IconButton, Grid, TextField } from "@material-ui/core";
+import { CssBaseline, IconButton, Grid, InputAdornment, TextField } from "@material-ui/core";
 import AccountCircle from '@material-ui/icons/AccountCircle';
 import ArrowForwardIosIcon from '@material-ui/icons/ArrowForwardIos';
 import FirebaseAuthentication from "./FirebaseAuthentication";
@@ -41,52 +41,78 @@ export default class Login extends React.Component {
         return (
             <div>
                 <CssBaseline />
+
+                {/* --------------  --------------  -------------- */}
+                {/*                     HomePage                   */}
+                {/* --------------  --------------  -------------- */}
                 {
                     !this.state.connect && 
                     <HomePage isConnect={this.callbackConnect} />
                 }
+
+                {/* --------------  --------------  -------------- */}
+                {/*              Firebase Authentication           */}
+                {/* --------------  --------------  -------------- */}
                 {
                     this.state.connect &&
                     <FirebaseAuthentication onAuthentication={this.callbackAuthentication} />
                 }
+
+                {/* --------------  --------------  -------------- */}
+                {/*                 Input Username                 */}
+                {/* --------------  --------------  -------------- */}
                 {   
                     this.state.connect && !this.state.loggedIn && !this.displayName && this.state.isAuthenticated &&
                     <Grid
                         container
                         spacing={0}
-                        direction="column"
+                        direction="row"
                         alignItems="center"
                         justify="center"
-                        style={{ minHeight: '100vh' }}
+                        style={{ minHeight: '100vh', overflow: "hidden" }}
                     >
-                        <Grid>
-                            <div>
-                                <Grid container spacing={1} alignItems="flex-end">
-                                    <Grid item>
-                                        <AccountCircle color="primary" size="medium" />
-                                    </Grid>
-                                    <Grid item>
-                                        <TextField
-                                            id="input-with-icon-grid" 
-                                            label="Display Name" 
-                                            size="small" 
-                                            required={true}
-                                            onChange={(e) => { this.displayName = e.target.value }}
-                                            />   
-                                    </Grid>
-                                    <Grid item>
-                                        <IconButton
-                                            size="small"
-                                            onClick={ () => {this.provisionNewUser();} }
+                        <Grid 
+                            container 
+                            justify="center"
+                        >
+                            <Grid
+                                item
+                                container
+                                justify="center"
+                                alignItems="center"
+                                spacing={1}
+                            >
+                                <Grid item >
+                                    <TextField
+                                        variant="outlined"
+                                        placeholder="Username"
+                                        size="small" 
+                                        required={true}
+                                        onChange={(e) => { this.displayName = e.target.value }}
+                                        InputProps={{
+                                            startAdornment: (
+                                                <InputAdornment>
+                                                    <AccountCircle color="primary" style={{ marginRight: "1vh" }} />
+                                                </InputAdornment>
+                                            )
+                                        }}
+                                    />   
+                                </Grid>
+                                <Grid item>
+                                    <IconButton
+                                        color="primary"
+                                        onClick={ () => {
+                                            if(!(this.displayName===undefined) && !(this.displayName===null))
+                                            this.provisionNewUser();
+                                            this.props.callbackDisplayName(this.displayName);
+                                        } }
                                         >
                                             <ArrowForwardIosIcon color="primary"/>
-                                        </IconButton>
-                                    </Grid>
+                                    </IconButton>
                                 </Grid>
-                            </div>
+                            </Grid>
                         </Grid>
                     </Grid>
-
                 }
                 {   
                     this.state.connect && !this.state.loggedIn && this.displayName &&
